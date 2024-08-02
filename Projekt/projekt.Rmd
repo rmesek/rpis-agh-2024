@@ -1,0 +1,224 @@
+---
+title: "Porównanie działania wybranych algorytmów minimalizacji stochastycznej"
+author: "Robert Mesek"
+output:
+    pdf_document:
+        number_sections: false
+        fig_caption: true
+        keep_tex: false
+        latex_engine: pdflatex
+---
+# Biblioteki
+```{r}
+suppressMessages(library(ecr))
+suppressMessages(library(smoof))
+suppressMessages(library(plot3D))
+suppressMessages(library(vioplot))
+```
+
+# Wybrane algorymty
+
+## Poszukiwanie przypadkowe (Pure Random Search, PRS)
+Losujemy po kolei zadaną z góry liczbę punktów z rozkładem jednostajnym w zadanej dziedzinie. 
+Dziedziną jest kostką wielowymiarową, więc będziemy losować kolejno współrzędne poszczególnych punktów według odpowiedniego jednowymiarowego rozkładu jednostajnego.
+Każdy wylosowany punkt porównujemy z aktualnie zapamiętanym minimum i jeśli wartość minimalizowanej funkcji w tym punkcie jest mniejsza, to ten punkt zapamiętujemy jako aktualny punkt minimalny. 
+Wartość funkcji w ostatnim zapamiętanym punkcie stanowi wynik algorytmu.
+
+### Implementacja
+```{r}
+prs_algo <- function(fn, budget) {
+    best_min <- Inf
+    for (i in 1:budget) {
+        args <- runif(
+            n = getNumberOfParameters(fn),
+            min = getLowerBoxConstraints(fn),
+            max = getUpperBoxConstraints(fn)
+        )
+        best_min <- min(best_min, fn(args))
+    }
+    return(best_min)
+}
+```
+
+\newpage
+
+## Algorytm genetyczny (GA)
+Wykorzystamy implementację algortmu z biblioteki `ecr` dostępnego w CRAN. 
+Wynikiem będzie najmniejsza znaleziona wartość funkcji.
+
+### Implementacja
+
+```{r}
+ga_algo <- function(fn, budget) {
+    minimization <- ecr(
+        fitness.fun = fn,
+        minimize = TRUE,
+        representation = "float",
+        n.dim = getNumberOfParameters(fn),
+        survival.strategy = "plus",
+        lower = getLowerBoxConstraints(fn),
+        upper = getUpperBoxConstraints(fn),
+        mu = 50,
+        lambda = 2,
+        mutator = setup(
+            mutUniform,
+            lower = getLowerBoxConstraints(fn),
+            upper = getUpperBoxConstraints(fn)
+        ),
+        terminators = list(stopOnEvals(budget)),
+        log.pop = FALSE
+    )
+    return(minimization$best.y)
+}
+```
+
+\newpage
+
+# Wybrane funkcje testowe
+
+## Funkcja Alpine02 dla 2 wymiarów
+```{r}
+plot3D(makeAlpine02Function(dimensions = 2), colkey = FALSE)
+```
+
+## Funkcja Rastrigina dla 2 wymiarów
+```{r}
+plot3D(makeRastriginFunction(dimensions = 2), colkey = FALSE)
+```
+
+\newpage
+
+# Rozkład wartości minimalnych
+```{r}
+budget <- 1000
+color_ga <- "darkseagreen1"
+color_prs <- "dodgerblue4"
+```
+
+## Funkcja Alpine02 dla 2 wymiarów
+```{r}
+ga_alpine02_2d <- replicate(50, ga_algo(makeAlpine02Function(dimensions = 2), budget))
+prs_alpine02_2d <- replicate(50, prs_algo(makeAlpine02Function(dimensions = 2), budget))
+```
+```{r, fig.show="hold", out.width="50%", comment=""}
+print(paste("Wartości średnie:", mean(ga_alpine02_2d), mean(prs_alpine02_2d)))
+hist(ga_alpine02_2d, breaks = 20, col = color_ga)
+hist(prs_alpine02_2d, breaks = 20, col = color_prs)
+```
+```{r}
+vioplot(ga_alpine02_2d, prs_alpine02_2d, names = c("GA", "PRS"), col = c(color_ga, color_prs))
+```
+
+\newpage
+
+## Funkcja Alpine02 dla 10 wymiarów
+```{r}
+ga_alpine02_10d <- replicate(50, ga_algo(makeAlpine02Function(dimensions = 10), budget))
+prs_alpine02_10d <- replicate(50, prs_algo(makeAlpine02Function(dimensions = 10), budget))
+```
+```{r, fig.show="hold", out.width="50%", comment=""}
+print(paste("Wartości średnie:", mean(ga_alpine02_10d), mean(prs_alpine02_10d)))
+hist(ga_alpine02_10d, breaks = 20, col = color_ga)
+hist(prs_alpine02_10d, breaks = 20, col = color_prs)
+```
+```{r}
+vioplot(ga_alpine02_10d, prs_alpine02_10d, names = c("GA", "PRS"), col = c(color_ga, color_prs))
+```
+
+\newpage
+
+## Funkcja Alpine02 dla 20 wymiarów
+```{r}
+ga_alpine02_20d <- replicate(50, ga_algo(makeAlpine02Function(dimensions = 20), budget))
+prs_alpine02_20d <- replicate(50, prs_algo(makeAlpine02Function(dimensions = 20), budget))
+```
+```{r, fig.show="hold", out.width="50%", comment=""}
+print(paste("Wartości średnie:", mean(ga_alpine02_20d), mean(prs_alpine02_20d)))
+hist(ga_alpine02_20d, breaks = 20, col = color_ga)
+hist(prs_alpine02_20d, breaks = 20, col = color_prs)
+```
+```{r}
+vioplot(ga_alpine02_20d, prs_alpine02_20d, names = c("GA", "PRS"), col = c(color_ga, color_prs))
+```
+
+\newpage
+
+## Funkcja Rastrigina dla 2 wymiarów
+```{r}
+ga_rastrigin_2d <- replicate(50, ga_algo(makeRastriginFunction(dimensions = 2), budget))
+prs_rastrigin_2d <- replicate(50, prs_algo(makeRastriginFunction(dimensions = 2), budget))
+```
+```{r, fig.show="hold", out.width="50%", comment=""}
+print(paste("Wartości średnie:", mean(ga_rastrigin_2d), mean(prs_rastrigin_2d)))
+hist(ga_rastrigin_2d, breaks = 20, col = color_ga)
+hist(prs_rastrigin_2d, breaks = 20, col = color_prs)
+```
+```{r}
+vioplot(ga_rastrigin_2d, prs_rastrigin_2d, names = c("GA", "PRS"), col = c(color_ga, color_prs))
+```
+
+\newpage
+
+## Funkcja Rastrigina dla 10 wymiarów
+```{r}
+ga_rastrigin_10d <- replicate(50, ga_algo(makeRastriginFunction(dimensions = 10), budget))
+prs_rastrigin_10d <- replicate(50, prs_algo(makeRastriginFunction(dimensions = 10), budget))
+```
+```{r, fig.show="hold", out.width="50%", comment=""}
+print(paste("Wartości średnie:", mean(ga_rastrigin_10d), mean(prs_rastrigin_10d)))
+hist(ga_rastrigin_10d, breaks = 20, col = color_ga)
+hist(prs_rastrigin_10d, breaks = 20, col = color_prs)
+```
+```{r}
+vioplot(ga_rastrigin_10d, prs_rastrigin_10d, names = c("GA", "PRS"), col = c(color_ga, color_prs))
+```
+
+\newpage
+
+## Funkcja Rastrigina dla 20 wymiarów
+```{r}
+ga_rastrigin_20d <- replicate(50, ga_algo(makeRastriginFunction(dimensions = 20), budget))
+prs_rastrigin_20d <- replicate(50, prs_algo(makeRastriginFunction(dimensions = 20), budget))
+```
+```{r, fig.show="hold", out.width="50%", comment=""}
+print(paste("Wartości średnie:", mean(ga_rastrigin_20d), mean(prs_rastrigin_20d)))
+hist(ga_rastrigin_20d, breaks = 20, col = color_ga)
+hist(prs_rastrigin_20d, breaks = 20, col = color_prs)
+```
+```{r}
+vioplot(ga_rastrigin_20d, prs_rastrigin_20d, names = c("GA", "PRS"), col = c(color_ga, color_prs))
+```
+
+\newpage
+
+# Istotności statystyczna różnicy między średnimi wynikami obu algorytmów
+Wykorzystamy t-test Studenta do sprawdzenia czy różnica między średnimi wynikami obu algorytmów jest istotna statystycznie.
+Funkcja `t.test()` domyślnie wybiera $95%$ poziom ufności.
+
+Hipoteza zerowa $H_0$: średnie wyniki obu algorytmów są równe.
+Hipoteza alternatywna $H_1$: średnie wyniki obu algorytmów są różne.
+
+## Funkcja Alpine02 dla 2 wymiarów
+```{r comment=""}
+t.test(ga_alpine02_2d, prs_alpine02_2d)
+```
+## Funkcja Alpine02 dla 10 wymiarów
+```{r comment=""}
+t.test(ga_alpine02_10d, prs_alpine02_10d)
+```
+## Funkcja Alpine02 dla 20 wymiarów
+```{r comment=""}
+t.test(ga_alpine02_20d, prs_alpine02_20d)
+```
+## Funkcja Rastrigina dla 2 wymiarów
+```{r comment=""}
+t.test(ga_rastrigin_2d, prs_rastrigin_2d)
+```
+## Funkcja Rastrigina dla 10 wymiarów
+```{r comment=""}
+t.test(ga_rastrigin_10d, prs_rastrigin_10d)
+```
+## Funkcja Rastrigina dla 20 wymiarów
+```{r comment=""}
+t.test(ga_rastrigin_20d, prs_rastrigin_20d)
+```
